@@ -26,22 +26,26 @@ services:
       KAFKA_LOG_DIRS: /var/kafka-logs
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes:
-      - kafka-data:/var/kafka-logs
+      - kafka-data-v3:/var/kafka-logs
 
-  spark:
-    build: .
+  spark-master:
+    image: apache/spark:4.0.1-python3
     container_name: spark-master
-    user: "0:0"
-    stdin_open: true
-    tty: true
-    command:
-      ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master"]
+    environment:
+      SPARK_MASTER_HOST: 0.0.0.0
+      SPARK_MASTER_PORT: 7077
+      SPARK_MASTER_WEBUI_PORT: 8080
     ports:
       - "8080:8080"
       - "7077:7077"
-      - "4040:4040"
+    command:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.master.Master
     volumes:
-      - ./data:/opt/spark-data
+      - ./work:/opt/work
 
 volumes:
-  kafka-data:
+  kafka-data-v3:
+
+# docker compose logs --tail 50 spark-master
+# 

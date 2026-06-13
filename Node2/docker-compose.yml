@@ -26,24 +26,18 @@ services:
       KAFKA_LOG_DIRS: /var/kafka-logs
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes:
-      - kafka-data:/var/kafka-logs
+      - kafka-data-v3:/var/kafka-logs
 
-  spark:
-    build: .
-    container_name: spark-worker1
-    user: "0:0"
-    stdin_open: true
-    tty: true
-    command:
-      [
-        "/opt/spark/bin/spark-class",
-        "org.apache.spark.deploy.worker.Worker",
-        "spark://192.168.1.101:7077",
-      ]
-    ports:
-      - "4040:4040"
-    volumes:
-      - ./data:/opt/spark-data
-
+  spark-worker:
+    image: apache/spark:4.0.1-python3
+    container_name: spark-worker
+    network_mode: "host"
+    environment:
+      SPARK_WORKER_MEMORY: "1g"
+      SPARK_WORKER_CORES: "1"
+    entrypoint:
+      - /opt/spark/bin/spark-class
+      - org.apache.spark.deploy.worker.Worker
+      - spark://192.168.1.101:7077
 volumes:
-  kafka-data:
+  kafka-data-v3:
