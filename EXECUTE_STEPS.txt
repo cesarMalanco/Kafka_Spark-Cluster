@@ -1,0 +1,95 @@
+Pasos breves y ordenados para ejecutar TODO (en la raíz del repo):
+
+1) Levantar contenedores en los 3 nodos (run en cada carpeta correspondiente o desde root con path):
+
+   docker compose -f Node1/docker-compose.yml up -d
+   docker compose -f Node2/docker-compose.yml up -d
+   docker compose -f Node3/docker-compose.yml up -d
+
+2) Verificar que Kafka y Spark están arriba:
+
+   # revisar logs y puertos
+   docker compose -f Node1/docker-compose.yml ps
+   docker compose -f Node1/docker-compose.yml logs -f broker
+   # Spark UI: http://192.168.1.101:8080
+
+3) Ejecutar el productor (genera 100k mensajes y archivos):
+
+   node Node1/kafka_producer.js
+
+   - Este proceso escribirá archivos en `Node1/data` (montados en /opt/spark-data dentro del contenedor Spark).
+
+4) Ejecutar consumidores (si no están persistiendo automáticamente):
+
+   node Node2/kafka_consumer.js &
+   node Node3/kafka_consumer.js &
+
+   - Esperar a que los `csv`/`json`/`.sql` aparezcan en `NodeX/data` o en `/opt/spark-data` dentro de contenedores Spark.
+
+5) Confirmar que los archivos están presentes desde el contenedor master Spark:
+
+   docker compose -f Node1/docker-compose.yml exec -it spark bash
+   ls -la /opt/spark-data
+   exit
+
+6) Ejecutar el script de procesamiento Spark (Scala) que ya agregamos:
+
+   ./spark-process.sh
+
+   - Observa la salida en consola; toma nota del tiempo total que tarda.
+   - Alternativa: añadir `time ./spark-process.sh` para medir duración total.
+
+7) Ejecutar el script de métricas para capturar Docker/Spark durante la ejecución:
+
+   ./run_spark_metrics.sh
+
+   - Generará archivos de métricas en `metrics/`.
+   - Guardará la salida de `spark-process.sh` y las muestras de `docker stats`.
+
+8) Monitorizar Spark UI mientras corre el job:
+
+   - Abrir http://192.168.1.101:8080 → Jobs / Stages / Executors.
+   - Guardar capturas de Jobs/Stages y la lista de ejecutores activos.
+
+8) Recolectar métricas por contenedor/nodo durante la ejecución:
+
+   # muestra uso en tiempo real (en la máquina que corre Docker)
+   docker stats $(docker ps -q)
+
+   # logs de Spark (si se montó):
+   docker compose -f Node1/docker-compose.yml logs spark
+   docker compose -f Node2/docker-compose.yml logs spark
+   docker compose -f Node3/docker-compose.yml logs spark
+
+9) Prueba de tolerancia a fallos (ya la tienes pero repetir para la carga Spark):
+
+   - Mientras un job Spark está en ejecución, parar un worker (por ejemplo Node2):
+     docker compose -f Node2/docker-compose.yml down
+   - Ver en Spark UI que el executor desaparece y que el job continúa o se reprograma.
+   - Relevantar el worker:
+     docker compose -f Node2/docker-compose.yml up -d
+
+10) Guardar evidencia y métricas:
+
+   - Capturas del Spark UI (jobs/stages/executors).
+   - Salida de `docker stats` o `top` durante el job.
+   - Logs de los contenedores (`docker compose logs`) y salida de `./spark-process.sh`.
+
+11) Apagar el entorno al terminar:
+
+   docker compose -f Node1/docker-compose.yml down
+   docker compose -f Node2/docker-compose.yml down
+   docker compose -f Node3/docker-compose.yml down
+
+Notas y verificaciones opcionales:
+
+- Si necesitas event-logging para Spark, añade en `spark-defaults.conf`:
+  spark.eventLog.enabled true
+  spark.eventLog.dir file:/opt/spark-event-logs
+  (montar un volumen para persistir `/opt/spark-event-logs`).
+
+- Asegúrate que los volúmenes `./data:/opt/spark-data` estén sincronizados y que los archivos sean legibles por el usuario dentro de los contenedores.
+
+- Para medir tiempos por etapa más finos, usar el Spark UI y/o habilitar el History Server y event logs.
+
+Archivo creado: EXECUTE_STEPS.txt
