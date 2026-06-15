@@ -1,16 +1,18 @@
 const { Kafka } = require('kafkajs');
 const { faker } = require('@faker-js/faker');
-const { version } = require('react');
+const fs = require('fs');
 
 // Node's connection
 const kafka = new Kafka({
-  clientId: 'master-producer',
+  clientId: 'node1',
   brokers: ['192.168.1.101:9092', '192.168.1.102:9092', '192.168.1.103:9092',]
 });
 
 const producer = kafka.producer();
+const consumer = kafka.consumer({groupId: 'group1'});
 const topics = ['personas', 'ventas', 'logs-sistema', 'sensores', 'transacciones'];
 
+// === DATA GENERATOR ===
 // Message's generating functions
 function generatePersona(){
   return {
@@ -105,8 +107,36 @@ function generateSensor(){
   };
 }
 
-// Principal function
-async function run(){
+// === CONSUMER ===
+async function runConsumer(){
+  await consumer.connect();
+  console.log("Consumer connected to the cluster");
+
+  const topics = ['personas', 'ventas', 'logs-sistema', 'sensores', 'transacciones'];
+  for(const t of topics){
+    await consumer.subscribe({topic: t, fromBeginning: true});
+  }
+
+  let localCounter = 0;
+
+  await consumer.run({
+    eachMessage: async({topic, partition, message}) => {
+      const payload = JSON.parse(message.value.toString());
+
+      fs.appendFileSync(fileCSV, payload.csv + '\n');
+      fs.appendFileSync(fileSQL, payload.sql + '\n');
+      fs.appendFileSync(fileJSON, payload.json + '\n');
+
+      localCounter++;
+      if(localCounter % 5000 === 0){
+        console.log(`I have processed and saved ${localCounter} records on this node...`)
+      }
+    },
+  })
+}
+
+// === PRODUCER ===
+async function runProducer(){
   await producer.connect();
   console.log("Producer connected. Starting message generation...");
   
@@ -129,7 +159,7 @@ async function run(){
     const messagePayload = {
       json: JSON.stringify(objData),
       csv: values.map(v => `"${v}"`).join(','),
-      sql: `INSERT INTO ${actualTopic.replace('-', '-')} VALUES (${values.map(v => `'${v}'`).join(',')});`
+      sql: `INSERT INTO ${actualTopic.replace('-', '_')} VALUES (${values.map(v => `'${v}'`).join(',')});`
     };
 
     await producer.send({
@@ -146,5 +176,23 @@ async function run(){
   await producer.disconnect();
 }
 
-run().catch(console.error);
+// === MAIN ===
+async function main(){
+  runConsumer().catch(console.error);
+
+  console.log('Waiting for stabilization of the consumer group (5s)...');
+  await new Promise(resolve => setTimeout(resolve, 5000));
+
+  await runProducer();
+
+  console.log('Producer finished. Ctrl + C to stop the consumer');
+
+  process.on('SIGINT', async () => {
+    console.log("\nSafely disconnecting the consumer...");
+    await consumer.disconnect();
+    process.exit(0);
+  });
+}
+
+main().catch(console.error);
 
