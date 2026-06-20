@@ -9,9 +9,9 @@ const kafka = new Kafka({
 const consumer = kafka.consumer({groupId: 'group1'});
 
 // Output files
-const fileCSV = 'data.csv';
-const fileSQL = 'data.sql';
-const fileJSON = 'data.json';
+const fileCSV = 'data_node2.csv';
+const fileSQL = 'data_node2.sql';
+const fileJSON = 'data_node2.json';
 
 async function run(){
   await consumer.connect();
@@ -33,8 +33,9 @@ async function run(){
       fs.appendFileSync(fileJSON, payload.json + '\n');
 
       localCounter++;
-      if(localCounter % 5000 === 0){
-        console.log(`I have processed and saved ${localCounter} records on this node...`)
+      console.log(`[OK] Record number ${localCounter} processed and saved successfully (Topic: ${topic})`);
+      if(localCounter % 1000 === 0){
+        console.log(`I have processed and saved ${localCounter} records on this node...`);
       }
     },
   });

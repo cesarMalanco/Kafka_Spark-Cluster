@@ -1,0 +1,24 @@
+services:
+  spark-master:
+    image: apache/spark:3.5.1
+    container_name: spark-master
+    hostname: spark-master
+
+    environment:
+      - SPARK_PUBLIC_DNS=192.168.1.101
+      - SPARK_LOCAL_IP=0.0.0.0
+
+    ports:
+      - "8090:8080"   
+      - "7077:7077"   
+      - "7001:7001"   
+      - "7002:7002"   
+
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+      --host 0.0.0.0
+      --port 7077
+      --webui-port 8080
+
+    volumes:
+      - ./:/opt/spark/data
